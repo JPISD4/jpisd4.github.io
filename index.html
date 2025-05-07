@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Simple Notepad</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background-color: #f9f9f9;
+    }
+    h1 {
+      text-align: center;
+    }
+    textarea {
+      display: block;
+      margin: 0 auto;
+      width: 90%;
+      height: 80vh;
+      font-size: 16px;
+      padding: 10px;
+      box-sizing: border-box;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      resize: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>Simple Notepad</h1>
+  <textarea id="notepad" placeholder="Write your notes here..."></textarea>
+
+  <script>
+    // Get a reference to the textarea element.
+    const textarea = document.getElementById('notepad');
+    
+    // Load any saved text from localStorage when the page loads.
+    const savedText = localStorage.getItem('notepadContent');
+    if (savedText) {
+      textarea.value = savedText;
+    }
+    
+    // Save the text to localStorage every time the user types.
+    textarea.addEventListener('input', () => {
+      localStorage.setItem('notepadContent', textarea.value);
+    });
+  </script>
+</body>
+</html>
