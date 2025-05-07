@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Simple Notepad</title>
+  <title>Simple Notepad with CSV Save</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -14,9 +14,9 @@
     }
     textarea {
       display: block;
-      margin: 0 auto;
+      margin: 10px auto;
       width: 90%;
-      height: 80vh;
+      height: 70vh;
       font-size: 16px;
       padding: 10px;
       box-sizing: border-box;
@@ -24,25 +24,64 @@
       border-radius: 5px;
       resize: none;
     }
+    #saveButton {
+      display: block;
+      margin: 10px auto;
+      padding: 10px 20px;
+      font-size: 16px;
+      border: none;
+      border-radius: 5px;
+      background-color: #4CAF50;
+      color: white;
+      cursor: pointer;
+    }
+    #saveButton:hover {
+      background-color: #45a049;
+    }
   </style>
 </head>
 <body>
   <h1>Simple Notepad</h1>
   <textarea id="notepad" placeholder="Write your notes here..."></textarea>
+  <button id="saveButton">Save to CSV</button>
 
   <script>
-    // Get a reference to the textarea element.
+    // Reference to the textarea.
     const textarea = document.getElementById('notepad');
-    
-    // Load any saved text from localStorage when the page loads.
+
+    // Load saved text from localStorage when the page loads.
     const savedText = localStorage.getItem('notepadContent');
     if (savedText) {
       textarea.value = savedText;
     }
     
-    // Save the text to localStorage every time the user types.
+    // Save text to localStorage on every input.
     textarea.addEventListener('input', () => {
       localStorage.setItem('notepadContent', textarea.value);
+    });
+
+    // Save the current text content to a CSV file when clicking the save button.
+    document.getElementById('saveButton').addEventListener('click', () => {
+      // Prepare the CSV content.
+      // Here, we wrap the text in double quotes to support multi-line content.
+      const csvContent = `"${textarea.value.replace(/"/g, '""')}"`;
+      
+      // Create a Blob with CSV type.
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      
+      // Create a temporary link element.
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', 'text.csv');
+      
+      // Append, click, and remove the link.
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Release the object URL.
+      URL.revokeObjectURL(url);
     });
   </script>
 </body>
