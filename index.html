@@ -2,86 +2,167 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Simple Notepad with CSV Save</title>
+  <title>Simple Chatting System</title>
   <style>
     body {
       font-family: Arial, sans-serif;
       margin: 20px;
-      background-color: #f9f9f9;
+      background: #f9f9f9;
     }
     h1 {
       text-align: center;
     }
-    textarea {
-      display: block;
-      margin: 10px auto;
+    .chat-container {
       width: 90%;
-      height: 70vh;
-      font-size: 16px;
-      padding: 10px;
-      box-sizing: border-box;
-      border: 1px solid #ccc;
+      max-width: 600px;
+      margin: 20px auto;
+      background: #fff;
+      padding: 20px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.1);
       border-radius: 5px;
-      resize: none;
     }
-    #saveButton {
-      display: block;
-      margin: 10px auto;
-      padding: 10px 20px;
+    .chat-log {
+      border: 1px solid #ccc;
+      height: 300px;
+      overflow-y: auto;
+      padding: 10px;
+      margin-bottom: 20px;
+      background: #f0f0f0;
+    }
+    .message {
+      margin-bottom: 10px;
+    }
+    .message span {
+      font-weight: bold;
+    }
+    .input-area {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .input-area select,
+    .input-area input {
       font-size: 16px;
+      padding: 5px;
+    }
+    #sendButton {
+      padding: 8px 16px;
+      font-size: 16px;
+      background: #4CAF50;
       border: none;
-      border-radius: 5px;
-      background-color: #4CAF50;
       color: white;
       cursor: pointer;
     }
-    #saveButton:hover {
-      background-color: #45a049;
+    #sendButton:hover {
+      background: #45a049;
     }
   </style>
 </head>
 <body>
-  <h1>Simple Notepad</h1>
-  <textarea id="notepad" placeholder="Write your notes here..."></textarea>
-  <button id="saveButton">Save to CSV</button>
+  <h1>Chatting System</h1>
+  <div class="chat-container">
+    <div class="chat-log" id="chatLog">
+      <!-- Chat messages will be appended here -->
+    </div>
+    <div class="input-area">
+      <select id="userSelect">
+        <option value="User1">User1</option>
+        <option value="User2">User2</option>
+      </select>
+      <input type="text" id="chatInput" placeholder="Type your message here..." style="flex: 1;">
+      <button id="sendButton">Send</button>
+    </div>
+  </div>
 
   <script>
-    // Reference to the textarea.
-    const textarea = document.getElementById('notepad');
+    // Array to store chat messages
+    const chatMessages = [];
 
-    // Load saved text from localStorage when the page loads.
-    const savedText = localStorage.getItem('notepadContent');
-    if (savedText) {
-      textarea.value = savedText;
+    // References to the necessary DOM elements.
+    const chatLog = document.getElementById('chatLog');
+    const chatInput = document.getElementById('chatInput');
+    const userSelect = document.getElementById('userSelect');
+    const sendButton = document.getElementById('sendButton');
+
+    // Updates the chat log display with all messages.
+    function updateChatLog() {
+      chatLog.innerHTML = '';
+      chatMessages.forEach(msg => {
+        const div = document.createElement('div');
+        div.classList.add('message');
+        // Format the timestamp for display.
+        const time = new Date(msg.timestamp).toLocaleTimeString();
+        div.innerHTML = `<span>${msg.user}</span> [${time}]: ${msg.message}`;
+        chatLog.appendChild(div);
+      });
+      // Scroll to the bottom after each update.
+      chatLog.scrollTop = chatLog.scrollHeight;
     }
-    
-    // Save text to localStorage on every input.
-    textarea.addEventListener('input', () => {
-      localStorage.setItem('notepadContent', textarea.value);
-    });
 
-    // Save the current text content to a CSV file when clicking the save button.
-    document.getElementById('saveButton').addEventListener('click', () => {
-      // Prepare the CSV content.
-      // Here, we wrap the text in double quotes to support multi-line content.
-      const csvContent = `"${textarea.value.replace(/"/g, '""')}"`;
-      
-      // Create a Blob with CSV type.
+    // Escapes fields for proper CSV formatting.
+    function escapeCsvField(field) {
+      if (field.includes('"') || field.includes(',') || field.includes('\n')) {
+        return '"' + field.replace(/"/g, '""') + '"';
+      }
+      return field;
+    }
+
+    // Generates CSV content from the chatMessages array.
+    function generateCSV() {
+      let csv = 'Timestamp,User,Message\n';
+      chatMessages.forEach(msg => {
+        const time = new Date(msg.timestamp).toISOString();
+        const user = escapeCsvField(msg.user);
+        const message = escapeCsvField(msg.message);
+        csv += `${time},${user},${message}\n`;
+      });
+      return csv;
+    }
+
+    // Downloads a CSV file with the given filename and content.
+    function downloadCSV(filename, csvContent) {
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      
-      // Create a temporary link element.
       const link = document.createElement('a');
       const url = URL.createObjectURL(blob);
       link.setAttribute('href', url);
-      link.setAttribute('download', 'text.csv');
-      
-      // Append, click, and remove the link.
+      link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
-      // Release the object URL.
       URL.revokeObjectURL(url);
+    }
+
+    // Send button event listener: processes new message and triggers CSV download.
+    sendButton.addEventListener('click', () => {
+      const messageText = chatInput.value.trim();
+      if (messageText === '') return; // Ignore empty messages
+
+      const selectedUser = userSelect.value;
+      const newMessage = {
+        timestamp: Date.now(),
+        user: selectedUser,
+        message: messageText
+      };
+
+      // Add the new message to the list.
+      chatMessages.push(newMessage);
+
+      // Update the chat log on the page.
+      updateChatLog();
+
+      // Clear the input field.
+      chatInput.value = '';
+
+      // Generate CSV content and download as chat.csv.
+      const csvContent = generateCSV();
+      downloadCSV('chat.csv', csvContent);
+    });
+
+    // Allow pressing the Enter key to send the message.
+    chatInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        sendButton.click();
+      }
     });
   </script>
 </body>
