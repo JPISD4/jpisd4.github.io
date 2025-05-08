@@ -2,168 +2,218 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Simple Chatting System</title>
+  <title>Flappy Bird Game</title>
   <style>
     body {
-      font-family: Arial, sans-serif;
-      margin: 20px;
-      background: #f9f9f9;
-    }
-    h1 {
-      text-align: center;
-    }
-    .chat-container {
-      width: 90%;
-      max-width: 600px;
-      margin: 20px auto;
-      background: #fff;
-      padding: 20px;
-      box-shadow: 0 0 8px rgba(0,0,0,0.1);
-      border-radius: 5px;
-    }
-    .chat-log {
-      border: 1px solid #ccc;
-      height: 300px;
-      overflow-y: auto;
-      padding: 10px;
-      margin-bottom: 20px;
-      background: #f0f0f0;
-    }
-    .message {
-      margin-bottom: 10px;
-    }
-    .message span {
-      font-weight: bold;
-    }
-    .input-area {
+      margin: 0;
+      background: #70c5ce; /* Sky-blue background */
+      overflow: hidden;
       display: flex;
-      gap: 10px;
-      margin-bottom: 10px;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      font-family: Arial, sans-serif;
     }
-    .input-area select,
-    .input-area input {
-      font-size: 16px;
-      padding: 5px;
+    canvas {
+      background: #70c5ce;
+      display: block;
     }
-    #sendButton {
-      padding: 8px 16px;
-      font-size: 16px;
-      background: #4CAF50;
-      border: none;
-      color: white;
-      cursor: pointer;
-    }
-    #sendButton:hover {
-      background: #45a049;
+    .game-over {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 48px;
+      color: red;
+      text-shadow: 2px 2px #000;
+      display: none;
     }
   </style>
 </head>
 <body>
-  <h1>Chatting System</h1>
-  <div class="chat-container">
-    <div class="chat-log" id="chatLog">
-      <!-- Chat messages will be appended here -->
-    </div>
-    <div class="input-area">
-      <select id="userSelect">
-        <option value="User1">User1</option>
-        <option value="User2">User2</option>
-      </select>
-      <input type="text" id="chatInput" placeholder="Type your message here..." style="flex: 1;">
-      <button id="sendButton">Send</button>
-    </div>
-  </div>
-
+  <canvas id="gameCanvas" width="320" height="480"></canvas>
+  <div class="game-over" id="gameOver">GAME OVER</div>
+  
   <script>
-    // Array to store chat messages
-    const chatMessages = [];
-
-    // References to the necessary DOM elements.
-    const chatLog = document.getElementById('chatLog');
-    const chatInput = document.getElementById('chatInput');
-    const userSelect = document.getElementById('userSelect');
-    const sendButton = document.getElementById('sendButton');
-
-    // Updates the chat log display with all messages.
-    function updateChatLog() {
-      chatLog.innerHTML = '';
-      chatMessages.forEach(msg => {
-        const div = document.createElement('div');
-        div.classList.add('message');
-        // Format the timestamp for display.
-        const time = new Date(msg.timestamp).toLocaleTimeString();
-        div.innerHTML = `<span>${msg.user}</span> [${time}]: ${msg.message}`;
-        chatLog.appendChild(div);
-      });
-      // Scroll to the bottom after each update.
-      chatLog.scrollTop = chatLog.scrollHeight;
-    }
-
-    // Escapes fields for proper CSV formatting.
-    function escapeCsvField(field) {
-      if (field.includes('"') || field.includes(',') || field.includes('\n')) {
-        return '"' + field.replace(/"/g, '""') + '"';
-      }
-      return field;
-    }
-
-    // Generates CSV content from the chatMessages array.
-    function generateCSV() {
-      let csv = 'Timestamp,User,Message\n';
-      chatMessages.forEach(msg => {
-        const time = new Date(msg.timestamp).toISOString();
-        const user = escapeCsvField(msg.user);
-        const message = escapeCsvField(msg.message);
-        csv += `${time},${user},${message}\n`;
-      });
-      return csv;
-    }
-
-    // Downloads a CSV file with the given filename and content.
-    function downloadCSV(filename, csvContent) {
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', filename);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    }
-
-    // Send button event listener: processes new message and triggers CSV download.
-    sendButton.addEventListener('click', () => {
-      const messageText = chatInput.value.trim();
-      if (messageText === '') return; // Ignore empty messages
-
-      const selectedUser = userSelect.value;
-      const newMessage = {
-        timestamp: Date.now(),
-        user: selectedUser,
-        message: messageText
+    (function() {
+      const canvas = document.getElementById('gameCanvas');
+      const ctx = canvas.getContext('2d');
+      
+      let frames = 0;
+      const DEGREE = Math.PI / 180;
+      let gameOver = false;
+      let score = 0;
+      
+      // The bird object holds its position, size, physics, and drawing logic.
+      const bird = {
+        x: 50,
+        y: 150,
+        width: 34,
+        height: 24,
+        gravity: 0.25,
+        jump: 4.6,
+        speed: 0,
+        rotation: 0,
+        draw: function() {
+          ctx.save();
+          ctx.translate(this.x, this.y);
+          ctx.rotate(this.rotation);
+          // Here we represent the bird with a yellow rectangle.
+          ctx.fillStyle = "#FF0";
+          ctx.fillRect(-this.width/2, -this.height/2, this.width, this.height);
+          ctx.restore();
+        },
+        flap: function() {
+          this.speed = -this.jump;
+        },
+        update: function() {
+          if (gameOver) return;
+          this.speed += this.gravity;
+          this.y += this.speed;
+          
+          // Set rotation based on the bird's speed.
+          if (this.speed >= this.jump) {
+            this.rotation = 90 * DEGREE;
+          } else {
+            this.rotation = -25 * DEGREE;
+          }
+          
+          // Floor collision: if the bird hits the bottom, the game ends.
+          if (this.y + this.height / 2 >= canvas.height) {
+            this.y = canvas.height - this.height / 2;
+            gameOver = true;
+            document.getElementById('gameOver').style.display = 'block';
+          }
+        }
       };
-
-      // Add the new message to the list.
-      chatMessages.push(newMessage);
-
-      // Update the chat log on the page.
-      updateChatLog();
-
-      // Clear the input field.
-      chatInput.value = '';
-
-      // Generate CSV content and download as chat.csv.
-      const csvContent = generateCSV();
-      downloadCSV('chat.csv', csvContent);
-    });
-
-    // Allow pressing the Enter key to send the message.
-    chatInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        sendButton.click();
+      
+      // Pipe parameters and the list to hold active pipes.
+      const pipeWidth = 50;
+      const pipeGap = 100;
+      const pipeSpeed = 2;
+      let pipes = [];
+      
+      // Function to generate a new pair of pipes.
+      function addPipe() {
+        const minHeight = 20;
+        const maxHeight = canvas.height - pipeGap - minHeight;
+        const topPipeHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1) + minHeight);
+        pipes.push({
+          x: canvas.width,
+          top: topPipeHeight,
+          scored: false // used to count the score once a pipe is passed
+        });
       }
-    });
+      
+      // Listen for keyboard and mouse input to flap the bird.
+      document.addEventListener('keydown', function(e) {
+        if (e.code === 'Space') {
+          bird.flap();
+        }
+        if (gameOver && e.code === 'Space') {
+          window.location.reload();
+        }
+      });
+      canvas.addEventListener('click', function() {
+        bird.flap();
+        if (gameOver) {
+          window.location.reload();
+        }
+      });
+      
+      // Collision detection between the bird and a pipe.
+      function collision(b, pipe) {
+        // Define bird's bounding box.
+        const bx = b.x - b.width / 2;
+        const by = b.y - b.height / 2;
+        const bw = b.width;
+        const bh = b.height;
+        
+        // Top pipe dimensions.
+        const topPipe = {
+          x: pipe.x,
+          y: 0,
+          width: pipeWidth,
+          height: pipe.top
+        };
+        
+        // Bottom pipe dimensions.
+        const bottomPipe = {
+          x: pipe.x,
+          y: pipe.top + pipeGap,
+          width: pipeWidth,
+          height: canvas.height - (pipe.top + pipeGap)
+        };
+        
+        // Function to check for rectangle intersection.
+        function rectIntersect(r1, r2) {
+          return r1.x < r2.x + r2.width &&
+                 r1.x + r1.width > r2.x &&
+                 r1.y < r2.y + r2.height &&
+                 r1.y + r1.height > r2.y;
+        }
+        
+        return rectIntersect({x: bx, y: by, width: bw, height: bh}, topPipe) ||
+               rectIntersect({x: bx, y: by, width: bw, height: bh}, bottomPipe);
+      }
+      
+      // The main game update loop.
+      function update() {
+        frames++;
+        
+        // Clear the canvas for the new frame.
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Update and draw the bird.
+        bird.update();
+        bird.draw();
+        
+        // Add new pipes every 90 frames.
+        if (frames % 90 === 0) {
+          addPipe();
+        }
+        
+        // Process and draw each pipe.
+        for (let i = 0; i < pipes.length; i++) {
+          let pipe = pipes[i];
+          pipe.x -= pipeSpeed;
+          
+          // Draw top pipe.
+          ctx.fillStyle = "#0F0";
+          ctx.fillRect(pipe.x, 0, pipeWidth, pipe.top);
+          // Draw bottom pipe.
+          ctx.fillRect(pipe.x, pipe.top + pipeGap, pipeWidth, canvas.height - (pipe.top + pipeGap));
+          
+          // Check for collisions between the bird and the current pipe.
+          if (collision(bird, pipe)) {
+            gameOver = true;
+            document.getElementById('gameOver').style.display = 'block';
+          }
+          
+          // Increase score once the bird passes a pipe.
+          if (pipe.x + pipeWidth < bird.x && !pipe.scored) {
+            score++;
+            pipe.scored = true;
+          }
+        }
+        
+        // Remove pipes that have gone off screen.
+        pipes = pipes.filter(pipe => pipe.x + pipeWidth > 0);
+        
+        // Draw the current score.
+        ctx.fillStyle = "#FFF";
+        ctx.font = "20px Arial";
+        ctx.fillText("Score: " + score, 10, 25);
+        
+        // Continue the game loop if the game isn't over.
+        if (!gameOver) {
+          requestAnimationFrame(update);
+        }
+      }
+      
+      // Start the game.
+      update();
+    })();
   </script>
 </body>
 </html>
