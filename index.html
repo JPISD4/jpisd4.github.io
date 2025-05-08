@@ -5,23 +5,44 @@
   <title>Modern Animated Chain Reaction</title>
   <style>
     body {
-      background: #1e1e1e;
-      color: #fff;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      text-align: center;
-      margin: 0;
-      padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #1e1e1e;
     }
     #info {
-      margin-bottom: 10px;
+      margin-bottom: 20px;
       font-size: 24px;
+      color: white;
     }
     canvas {
       background: #2d2d2d;
       border: 2px solid #444;
       border-radius: 10px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
     }
+        .modern-button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: background-color 0.3s ease, transform 0.2s ease;
+        }
+
+        .modern-button:hover {
+            background-color: #45a049;
+            transform: translateY(-2px);
+        }
+
+        .modern-button:active {
+            transform: translateY(1px);
+        }
   </style>
 </head>
 <body>
@@ -62,6 +83,9 @@
 
     // For smooth explosion animations: moving orbs are animated objects.
     let movingOrbs = [];
+
+    // Add a global variable to track the rotation angle for revolving orbs.
+    let rotationAngle = 0;
 
     // Set up the canvas (and its modern style) and graphics context.
     const canvas = document.getElementById("boardCanvas");
@@ -131,41 +155,39 @@
       });
     }
 
-    // Draw orbs for a cell based on how many are present.
+    // Update the drawOrbsInCell function to make orbs revolve around each other.
     function drawOrbsInCell(r, c, count, owner) {
-      const centerX = c * cellWidth + cellWidth / 2;
-      const centerY = r * cellHeight + cellHeight / 2;
-      const radius = 10;
-      const color = playerColors[owner];
-      ctx.fillStyle = color;
+  const centerX = c * cellWidth + cellWidth / 2;
+  const centerY = r * cellHeight + cellHeight / 2;
+  const baseRadius = 10;
+  const orbitRadius = 12; // Closer orbs for virus-like clustering
+  const color = playerColors[owner];
+  ctx.fillStyle = color;
 
-      let positions = [];
-      if (count === 1) {
-        positions.push({ x: centerX, y: centerY });
-      } else if (count === 2) {
-        positions.push({ x: centerX - radius, y: centerY });
-        positions.push({ x: centerX + radius, y: centerY });
-      } else if (count === 3) {
-        positions.push({ x: centerX - radius, y: centerY - radius });
-        positions.push({ x: centerX + radius, y: centerY - radius });
-        positions.push({ x: centerX, y: centerY + radius });
-      } else {
-        // For four or more orbs, distribute them around the center.
-        for (let i = 0; i < count; i++) {
-          const angle = (2 * Math.PI * i) / count;
-          positions.push({
-            x: centerX + radius * Math.cos(angle),
-            y: centerY + radius * Math.sin(angle)
-          });
-        }
-      }
+  // Breathing effect using sine wave
+  const time = Date.now() * 0.005;
+  const breathing = 1 + 0.2 * Math.sin(time);
 
-      positions.forEach(pos => {
-        ctx.beginPath();
-        ctx.arc(pos.x, pos.y, radius, 0, 2 * Math.PI);
-        ctx.fill();
+  let positions = [];
+  if (count === 1) {
+    positions.push({ x: centerX, y: centerY });
+  } else {
+    for (let i = 0; i < count; i++) {
+      const angle = (2 * Math.PI * i) / count + rotationAngle;
+      positions.push({
+        x: centerX + orbitRadius * Math.cos(angle),
+        y: centerY + orbitRadius * Math.sin(angle),
       });
     }
+  }
+
+  positions.forEach(pos => {
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, baseRadius * breathing, 0, 2 * Math.PI);
+    ctx.fill();
+  });
+}
+
 
     // Draw a single orb at a specified (x,y) coordinate.
     function drawOrbAt(x, y, owner) {
@@ -310,10 +332,14 @@
 
     // The main animation loop uses requestAnimationFrame for smooth updates.
     let lastTimestamp = 0;
+    // Update the game loop to increment the rotation angle for animation.
     function gameLoop(timestamp) {
       if (!lastTimestamp) lastTimestamp = timestamp;
       const dt = timestamp - lastTimestamp;
       lastTimestamp = timestamp;
+
+      // Increment the rotation angle for the revolving effect.
+      rotationAngle += 0.01;
 
       updateMovingOrbs(dt);
       // If no moving orbs remain and chain reactions are flagged,
@@ -333,5 +359,16 @@
 
     initGame();
   </script>
-</body>
+
+    <div>
+      <button class="modern-button" onclick="restartGame()">Restart</button>
+    </div>
+    <script>
+
+        function restartGame() {
+            location.reload();
+        }
+    </script>
+    </body>
+    
 </html>
