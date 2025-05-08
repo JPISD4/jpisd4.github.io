@@ -2,83 +2,92 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Chain Reaction Game</title>
+  <title>Modern Animated Chain Reaction</title>
   <style>
     body {
-      background: #222;
+      background: #1e1e1e;
       color: #fff;
-      font-family: Arial, sans-serif;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       text-align: center;
       margin: 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
+      padding: 20px;
     }
     #info {
       margin-bottom: 10px;
-      font-size: 20px;
+      font-size: 24px;
     }
     canvas {
-      background: #333;
-      border: 2px solid #555;
+      background: #2d2d2d;
+      border: 2px solid #444;
+      border-radius: 10px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
     }
   </style>
 </head>
 <body>
-  <!-- Displays the current player turn -->
   <div id="info">Current Turn: Player 1</div>
-  <!-- The game board will be drawn on this canvas -->
   <canvas id="boardCanvas"></canvas>
 
   <script>
     /*****************************************************************
-     * Basic chain reaction game implementation.
+     * Modern Animated Chain Reaction Game
+     *
+     * Two players take turns placing orbs on a grid. Each cell’s
+     * critical mass is determined by its number of (orthogonal)
+     * neighbors. When the orb count in a cell meets or exceeds
+     * its threshold, the cell “explodes”—animated as smooth orb
+     * movements—to adjacent cells, converting any opponent’s orbs.
+     * The game ends once both players have played and one player's
+     * orbs are entirely removed.
      *****************************************************************/
 
-    // Set the grid dimensions.
+    // Grid configuration
     const rows = 9;
     const cols = 6;
-    // Define the size (in pixels) for each cell.
     const cellWidth = 80;
     const cellHeight = 80;
 
-    // Colors for player 1 and player 2.
+    // Player colors in a modern palette.
     const playerColors = {
-      1: "red",
-      2: "blue"
+      1: "#ff4d4d", // red-ish
+      2: "#4d94ff"  // blue-ish
     };
 
-    // Global game variables.
-    let board = []; // 2D array: each cell is { count, owner }.
-    let currentPlayer = 1; // Player 1 always starts.
+    // Global game state
+    let board = [];         // 2D array: each cell { count, owner }
+    let currentPlayer = 1;  // Player 1 begins.
     let gameOver = false;
-    let processingChain = false;
-    // Flags to ensure that a player is “active” only after making a move.
-    const playerActive = {1: false, 2: false};
+    let processingChain = false;  // True while chain reactions are taking place.
+    const playerActive = { 1: false, 2: false };
 
-    // Get the canvas and set its dimensions.
+    // For smooth explosion animations: moving orbs are animated objects.
+    let movingOrbs = [];
+
+    // Set up the canvas (and its modern style) and graphics context.
     const canvas = document.getElementById("boardCanvas");
     canvas.width = cols * cellWidth;
     canvas.height = rows * cellHeight;
     const ctx = canvas.getContext("2d");
 
-    // Initialize the board with empty cells.
+    // Easing function for smooth animations.
+    function easeOutQuad(x) {
+      return 1 - (1 - x) * (1 - x);
+    }
+
+    // Initialize the grid.
     function initBoard() {
       board = [];
       for (let r = 0; r < rows; r++) {
-        const row = [];
+        let row = [];
         for (let c = 0; c < cols; c++) {
-          row.push({ count: 0, owner: 0 }); // owner === 0 means empty.
+          row.push({ count: 0, owner: 0 });
         }
         board.push(row);
       }
     }
 
-    // Calculate the explosion threshold for a given cell.
-    // (A cell’s threshold is the number of its valid (orthogonal) neighbors.)
+    // Determine a cell's explosion threshold based on its position.
+    // Corners have threshold 2, edges 3, centers 4.
     function getThreshold(r, c) {
       let threshold = 4;
       if (r === 0 || r === rows - 1) threshold--;
@@ -86,13 +95,13 @@
       return threshold;
     }
 
-    // Draw the grid, border lines, and orbs in each cell.
+    // Draw the game board: grid lines, static orbs, and any moving orbs.
     function drawBoard() {
-      // Clear canvas.
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Draw grid lines.
-      ctx.strokeStyle = "#777";
+      // Draw grid lines in a subtle modern style.
+      ctx.strokeStyle = "#555";
+      ctx.lineWidth = 1;
       for (let r = 0; r <= rows; r++) {
         ctx.beginPath();
         ctx.moveTo(0, r * cellHeight);
@@ -106,26 +115,31 @@
         ctx.stroke();
       }
 
-      // Draw the orbs in each cell.
+      // Draw static orbs (already “at rest” in the cells).
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
           const cell = board[r][c];
           if (cell.count > 0) {
-            drawOrbs(r, c, cell.count, cell.owner);
+            drawOrbsInCell(r, c, cell.count, cell.owner);
           }
         }
       }
+
+      // Draw moving explosion orbs on top.
+      movingOrbs.forEach(orb => {
+        drawOrbAt(orb.x, orb.y, orb.owner);
+      });
     }
 
-    // Helper function: Draw orbs in a cell at row r and column c.
-    // We position them depending on how many are in the cell.
-    function drawOrbs(r, c, count, owner) {
+    // Draw orbs for a cell based on how many are present.
+    function drawOrbsInCell(r, c, count, owner) {
       const centerX = c * cellWidth + cellWidth / 2;
       const centerY = r * cellHeight + cellHeight / 2;
       const radius = 10;
       const color = playerColors[owner];
+      ctx.fillStyle = color;
 
-      const positions = [];
+      let positions = [];
       if (count === 1) {
         positions.push({ x: centerX, y: centerY });
       } else if (count === 2) {
@@ -136,7 +150,7 @@
         positions.push({ x: centerX + radius, y: centerY - radius });
         positions.push({ x: centerX, y: centerY + radius });
       } else {
-        // (For safety, if more than 3 orbs ever show up.)
+        // For four or more orbs, distribute them around the center.
         for (let i = 0; i < count; i++) {
           const angle = (2 * Math.PI * i) / count;
           positions.push({
@@ -146,7 +160,6 @@
         }
       }
 
-      ctx.fillStyle = color;
       positions.forEach(pos => {
         ctx.beginPath();
         ctx.arc(pos.x, pos.y, radius, 0, 2 * Math.PI);
@@ -154,66 +167,103 @@
       });
     }
 
-    // Process chain reactions. This function looks for cells that have reached
-    // or exceeded their threshold and “explodes” them, sending one orb to each
-    // neighbor. The explosions are processed in steps to allow simple animation.
-    function processChainReaction() {
-      const unstable = [];
-      // Find unstable cells.
+    // Draw a single orb at a specified (x,y) coordinate.
+    function drawOrbAt(x, y, owner) {
+      const radius = 10;
+      ctx.fillStyle = playerColors[owner];
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, 2 * Math.PI);
+      ctx.fill();
+    }
+
+    // When a cell explodes, create moving orb animations destined
+    // for each valid (orthogonal) neighbor.
+    function startExplosion(r, c) {
+      const owner = board[r][c].owner;
+      // Clear the exploding cell.
+      board[r][c].count = 0;
+      board[r][c].owner = 0;
+
+      // Define neighbor directions: up, down, left, right.
+      const directions = [
+        { dr: -1, dc: 0 },
+        { dr: 1, dc: 0 },
+        { dr: 0, dc: -1 },
+        { dr: 0, dc: 1 }
+      ];
+
+      directions.forEach(dir => {
+        const nr = r + dir.dr;
+        const nc = c + dir.dc;
+        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+          // Create a moving orb from the center of the current cell
+          // to the center of the neighbor cell.
+          const orb = {
+            startX: c * cellWidth + cellWidth / 2,
+            startY: r * cellHeight + cellHeight / 2,
+            endX: nc * cellWidth + cellWidth / 2,
+            endY: nr * cellHeight + cellHeight / 2,
+            owner: owner,
+            progress: 0,
+            duration: 300, // milliseconds
+            x: c * cellWidth + cellWidth / 2,
+            y: r * cellHeight + cellHeight / 2
+          };
+          movingOrbs.push(orb);
+        }
+      });
+    }
+
+    // Look for cells that have reached/exceeded their threshold.
+    // If found, trigger their explosions. Otherwise, finish the chain.
+    function processChainReactionsIfAny() {
+      let unstableCells = [];
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
           if (board[r][c].count >= getThreshold(r, c)) {
-            unstable.push({ r, c, owner: board[r][c].owner });
+            unstableCells.push({ r, c });
           }
         }
       }
-      // If none are unstable, finish the chain reaction.
-      if (unstable.length === 0) {
+      if (unstableCells.length > 0) {
+        unstableCells.forEach(cell => startExplosion(cell.r, cell.c));
+      } else {
+        // No more unstable cells: chain reaction complete.
         processingChain = false;
-        drawBoard();
         checkWin();
         if (!gameOver) {
-          // Switch turn after chain reactions have completely subsided.
+          // Switch turns after chain reactions settle.
           currentPlayer = currentPlayer === 1 ? 2 : 1;
           updateInfo();
         }
-        return;
       }
-      processingChain = true;
-      // Process all unstable cells simultaneously.
-      const additions = [];
-      unstable.forEach(item => {
-        const { r, c, owner } = item;
-        // Reset the unstable cell.
-        board[r][c].count = 0;
-        board[r][c].owner = 0;
-        // Get valid adjacent cell coordinates.
-        const directions = [
-          { dr: -1, dc: 0 },
-          { dr: 1, dc: 0 },
-          { dr: 0, dc: -1 },
-          { dr: 0, dc: 1 }
-        ];
-        directions.forEach(dir => {
-          const nr = r + dir.dr;
-          const nc = c + dir.dc;
-          if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
-            additions.push({ r: nr, c: nc, owner });
-          }
-        });
-      });
-      // Apply additions: increase orb count and change ownership.
-      additions.forEach(add => {
-        board[add.r][add.c].count++;
-        // When an orb is added, the cell converts to the explosion owner.
-        board[add.r][add.c].owner = add.owner;
-      });
-      drawBoard();
-      // Continue the chain reaction after a short delay.
-      setTimeout(processChainReaction, 200);
     }
 
-    // Check whether one of the players has lost (after both have played at least once).
+    // Update moving orb animations. As each orb travels, update its
+    // position using an easing function. When an orb reaches its
+    // destination, add it to the target cell.
+    function updateMovingOrbs(dt) {
+      // dt is in milliseconds.
+      for (let i = movingOrbs.length - 1; i >= 0; i--) {
+        let orb = movingOrbs[i];
+        orb.progress += dt;
+        let t = Math.min(orb.progress / orb.duration, 1);
+        let easeT = easeOutQuad(t);
+        orb.x = orb.startX + (orb.endX - orb.startX) * easeT;
+        orb.y = orb.startY + (orb.endY - orb.startY) * easeT;
+
+        if (t >= 1) {
+          // Orb has reached its destination.
+          movingOrbs.splice(i, 1);
+          let destC = Math.floor(orb.endX / cellWidth);
+          let destR = Math.floor(orb.endY / cellHeight);
+          board[destR][destC].count++;
+          board[destR][destC].owner = orb.owner;
+        }
+      }
+    }
+
+    // Check win conditions once both players have activated.
     function checkWin() {
       const counts = { 1: 0, 2: 0 };
       for (let r = 0; r < rows; r++) {
@@ -227,20 +277,21 @@
       if (playerActive[1] && playerActive[2]) {
         if (counts[1] === 0) {
           gameOver = true;
-          alert("Player 2 wins!");
+          setTimeout(() => alert("Player 2 wins!"), 100);
         } else if (counts[2] === 0) {
           gameOver = true;
-          alert("Player 1 wins!");
+          setTimeout(() => alert("Player 1 wins!"), 100);
         }
       }
     }
 
-    // Update the info div with the current turn.
+    // Update the info display to show whose turn it is.
     function updateInfo() {
       document.getElementById("info").textContent = "Current Turn: Player " + currentPlayer;
     }
 
-    // Handle player moves on canvas clicks.
+    // Handle canvas clicks: if the clicked cell is empty or belongs to
+    // the current player, add an orb and trigger (animated) chain reactions.
     canvas.addEventListener("click", function(event) {
       if (gameOver || processingChain) return;
       const rect = canvas.getBoundingClientRect();
@@ -248,25 +299,36 @@
       const y = event.clientY - rect.top;
       const c = Math.floor(x / cellWidth);
       const r = Math.floor(y / cellHeight);
-      // A valid move can only be played on an empty cell or one already owned by the current player.
       if (board[r][c].owner === 0 || board[r][c].owner === currentPlayer) {
-        // Place an orb.
         board[r][c].count++;
         board[r][c].owner = currentPlayer;
-        // Mark that the player is now active.
         playerActive[currentPlayer] = true;
-        drawBoard();
         // Begin processing any chain reactions.
         processingChain = true;
-        setTimeout(processChainReaction, 200);
       }
     });
 
-    // Initialize the game.
+    // The main animation loop uses requestAnimationFrame for smooth updates.
+    let lastTimestamp = 0;
+    function gameLoop(timestamp) {
+      if (!lastTimestamp) lastTimestamp = timestamp;
+      const dt = timestamp - lastTimestamp;
+      lastTimestamp = timestamp;
+
+      updateMovingOrbs(dt);
+      // If no moving orbs remain and chain reactions are flagged,
+      // check for unstable cells to process.
+      if (processingChain && movingOrbs.length === 0) {
+        processChainReactionsIfAny();
+      }
+      drawBoard();
+      requestAnimationFrame(gameLoop);
+    }
+
     function initGame() {
       initBoard();
       updateInfo();
-      drawBoard();
+      requestAnimationFrame(gameLoop);
     }
 
     initGame();
